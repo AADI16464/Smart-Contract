@@ -18,85 +18,67 @@ To run this program, I uesd Remix which is an online Solidity IDE.
 After navigating to the Remix website, I created a file named Bakery.sol, where .sol is the extension used for Solidity files. I then pasted the code below into this file.
 
 ```javascript
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+//SPDX-License-Identifier:MIT
+pragma solidity ^0.8.0;
 
-contract BakeryShop 
-{
-    address public owner;
-    uint public totalCakes;
-    mapping(address => uint) public customerCakes;
+contract Crowdfunding {
+    address payable public beneficiary;
+    uint public Goal;
+    uint public amountRaised;
+    mapping(address => uint) public contributions;
+    bool public fundingGoalReached;
+    bool public crowdsaleClosed;
 
-    event CakeBaked(uint quantity);
-    event CakeSold(address indexed customer, uint quantity);
-    event CakeReturned(address indexed customer, uint quantity);
-
-    constructor() 
-    {
-        owner = msg.sender;
+    constructor(
+        address payable _beneficiary,
+        uint _Goal
+    ) {
+        beneficiary = _beneficiary;
+        Goal = _Goal;
     }
 
-    // Function to bake cakes, only owner can bake
-    function bakeCakes(uint quantity) public 
-    {
-        require(msg.sender == owner, "Only owner can bake cakes");
-        require(quantity > 0, "Quantity must be greater than zero");
-        
-        totalCakes += quantity;
-        emit CakeBaked(quantity);
-    }
+    function contribute() public payable {
+        require(!crowdsaleClosed, "Crowdsale is closed.");
+        require(msg.value > 0, "Contribution must be greater than 0.");
 
-    // Function to sell cakes
-    function sellCakes(uint quantity) public payable
-    {
-        require(quantity > 0, "Quantity must be greater than zero");
-        require(totalCakes >= quantity, "Not enough cakes in stock");
-        require(msg.value <= quantity * 0.5 ether, "Insufficient payment, 0.5 ether per cake");
-
-        totalCakes -= quantity;
-        customerCakes[msg.sender] += quantity;
-        emit CakeSold(msg.sender, quantity);
-    }
-
-    // Function to return cakes
-    function returnCakes(uint quantity) public 
-    {
-        require(quantity > 0, "Quantity must be greater than zero");
-        require(customerCakes[msg.sender] >= quantity, "You don't have enough cakes to return");
-
-        customerCakes[msg.sender] -= quantity;
-        totalCakes += quantity;
-
-        // Refund ether to the customer
-        uint refundAmount = quantity * 0.5 ether;
-        (bool success, ) = msg.sender.call{value: refundAmount}("");
-        if (!success) {
-            revert("Refund failed");
-        }
-        
-        emit CakeReturned(msg.sender, quantity);
-    }
-
-    // Function to withdraw all funds (only owner)
-    function withdrawFunds() public 
-    {
-        require(msg.sender == owner, "Only owner can withdraw funds");
-        uint balance = address(this).balance;
-
-        // Ensure the contract has a positive balance before withdrawing
-        assert(balance > 0);
-
-        (bool success, ) = owner.call{value: balance}("");
-        if (!success) {
-            revert("Withdrawal failed");
+        contributions[msg.sender] += msg.value;
+        amountRaised += msg.value;
+        if (amountRaised >= Goal) {
+            fundingGoalReached = true;
         }
     }
 
-    // Fallback function to receive ether
-    receive() external payable {}
+    function checkGoalReached() public {
+        if (!crowdsaleClosed) {
+            revert("Crowdsale is not closed yet.");
+        }
+        if (!fundingGoalReached) {
+            revert("Funding goal not reached.");
+        }
+        assert(amountRaised >= Goal);
+        beneficiary.transfer(amountRaised);
+    }
+
+    function closeCrowdsale() public {
+        require(!crowdsaleClosed, "Crowdsale is already closed.");
+        crowdsaleClosed = true;
+        if (amountRaised >= Goal) {
+            fundingGoalReached = true;
+        }
+    }
+
+    function refund() public {
+        require(crowdsaleClosed, "Crowdsale is not closed.");
+        require(!fundingGoalReached, "Funding goal reached, no refunds available.");
+
+        uint amount = contributions[msg.sender];
+        require(amount > 0, "No contributions to refund.");
+
+        contributions[msg.sender] = 0;
+        payable(msg.sender).transfer(amount);
+    }
 }
-
-```
+....
 
 To compile the code, I clicked on the "Solidity Compiler" tab in the left-hand sidebar and ensured that the compiler version was greater than or equal to "0.8.4" so that my Solidity code could run properly without any errors. Then, I clicked on the "Compile Bakery.sol" button.
 
